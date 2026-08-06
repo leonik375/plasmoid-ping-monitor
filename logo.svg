@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Ping Monitor logo.
+
+    The same shape the widget draws in the panel: a solid dot inside a
+    translucent ring, in the Breeze positive colour. Kept deliberately close to
+    StatusDot.qml so the listing and the running widget read as the same thing.
+
+    SPDX-FileCopyrightText: 2026 leonik <leonik.eut@gmail.com>
+    SPDX-License-Identifier: GPL-2.0-or-later
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+    <title>Ping Monitor</title>
+
+    <!-- Ring: stroke is 9% of the diameter, matching the widget. -->
+    <circle cx="256" cy="256" r="212"
+            fill="none" stroke="#27ae60" stroke-opacity="0.35" stroke-width="42"/>
+
+    <!-- Core: 62% of the ring diameter, again as the widget draws it. -->
+    <circle cx="256" cy="256" r="132" fill="#27ae60"/>
+</svg>

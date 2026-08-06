@@ -11,7 +11,7 @@
         "Description": "Periodically pings a host and shows whether it is reachable",
         "Icon": "network-connect",
         "Id": "io.github.leonik.pingmonitor",
-        "License": "GPL-3.0-or-later",
+        "License": "GPL-2.0-or-later",
         "Name": "Ping Monitor",
         "Version": "1.0"
     },

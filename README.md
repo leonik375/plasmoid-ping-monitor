@@ -165,5 +165,5 @@ $ echo $?     # 0 replied, 1 no reply, 2 usage or system error
 
 ## Licensing
 
-The widget and the helper are GPL-3.0-or-later. cpp-icmplib is BSD 3-Clause,
+The widget and the helper are GPL-2.0-or-later. cpp-icmplib is BSD 3-Clause,
 Copyright (c) 2021 Marcin Kondej, and is included as an unmodified submodule.

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                          http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+
+    <kcfgfile name=""/>
+
+    <group name="General">
+        <entry name="host" type="String">
+            <label>Host name or IP address to ping</label>
+            <default>1.1.1.1</default>
+        </entry>
+
+        <entry name="label" type="String">
+            <label>Optional display name shown instead of the host</label>
+            <default></default>
+        </entry>
+
+        <entry name="interval" type="Int">
+            <label>Seconds between checks</label>
+            <default>30</default>
+            <min>5</min>
+            <max>3600</max>
+        </entry>
+
+        <entry name="timeout" type="Int">
+            <label>Seconds to wait for a reply</label>
+            <default>2</default>
+            <min>1</min>
+            <max>60</max>
+        </entry>
+
+        <entry name="count" type="Int">
+            <label>Packets sent per check</label>
+            <default>1</default>
+            <min>1</min>
+            <max>10</max>
+        </entry>
+
+        <entry name="addressFamily" type="Int">
+            <label>0 = automatic, 1 = IPv4 only, 2 = IPv6 only</label>
+            <default>0</default>
+        </entry>
+
+        <entry name="showLatency" type="Bool">
+            <label>Show the round trip time next to the indicator</label>
+            <default>false</default>
+        </entry>
+
+        <entry name="showLabel" type="Bool">
+            <label>Show the host name next to the indicator</label>
+            <default>false</default>
+        </entry>
+
+        <entry name="notifyOnChange" type="Bool">
+            <label>Send a notification when availability changes</label>
+            <default>false</default>
+        </entry>
+
+        <entry name="attentionWhenDown" type="Bool">
+            <label>Request attention while the host is unreachable</label>
+            <default>true</default>
+        </entry>
+
+        <entry name="historySize" type="Int">
+            <label>Number of past checks kept for the history strip</label>
+            <default>30</default>
+            <min>5</min>
+            <max>120</max>
+        </entry>
+    </group>
+</kcfg>

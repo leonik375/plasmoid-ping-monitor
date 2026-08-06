@@ -1,0 +1,66 @@
+Use Linux unprivileged ping sockets instead of raw sockets.
+
+SOCK_DGRAM/IPPROTO_ICMP needs no CAP_NET_RAW when net.ipv4.ping_group_range
+covers the calling user, which lets the helper run as a normal user. The
+kernel delivers only this socket's replies, strips the IP header, and owns
+the echo identifier, so the offsets and the reply matching change with it.
+
+TTL comes from the IP header and is no longer available; it reports 0.
+
+--- a/icmplib.h
++++ b/icmplib.h
+@@ -463,7 +463,7 @@
+                     protocol = IPPROTO_ICMPV6;
+                 }
+ 
+-                sock = socket(IPAddress::GetFamily(type), SOCK_RAW, protocol);
++                sock = socket(IPAddress::GetFamily(type), SOCK_DGRAM, protocol);
+ #ifdef _WIN32
+                 if (sock == INVALID_SOCKET) {
+ #else
+@@ -593,7 +593,7 @@
+                     break;
+                 case IPAddress::Type::IPv4:
+                 default:
+-                    std::memcpy(&packet, &buffer[ICMPLIB_INET4_HEADER_SIZE + offset], sizeof(T));
++                    std::memcpy(&packet, &buffer[offset], sizeof(T));
+                 }
+                 return packet;
+             }
+@@ -614,7 +614,7 @@
+                     break;
+                 case IPAddress::Type::IPv4:
+                 default:
+-                    return buffer[ICMPLIB_INET4_TTL_OFFSET];
++                    return 0;
+                 }
+             }
+             unsigned GetSize() const {
+@@ -624,7 +624,7 @@
+                     break;
+                 case IPAddress::Type::IPv4:
+                 default:
+-                    return (length > ICMPLIB_INET4_HEADER_SIZE) ? length - ICMPLIB_INET4_HEADER_SIZE : 0;
++                    return length;
+                 }
+             }
+             template <class T>
+@@ -632,7 +632,7 @@
+                 return (offset <= GetSize()) && (sizeof(T) <= GetSize() - offset);
+             }
+             const uint8_t *GetICMPData(unsigned offset = 0) const {
+-                unsigned base = (protocol == IPAddress::Type::IPv6) ? 0 : ICMPLIB_INET4_HEADER_SIZE;
++                unsigned base = 0;
+                 return buffer + base + offset;
+             }
+         private:
+@@ -671,7 +671,8 @@
+         };
+ 
+         static bool MatchEchoRequest(const ICMPRequest &request, const ICMPEchoHeader &echo, bool verify_checksum = false) {
+-            return (request.id == echo.id) && (request.seq == echo.seq) && (!verify_checksum || (request.checksum == echo.checksum));
++            (void)verify_checksum;
++            return request.seq == echo.seq;
+         }
+ 
+         static ClassifyResult MatchEchoResponse(const ICMPRequest &request, ICMPResponse &response, bool verify_checksum = true) {

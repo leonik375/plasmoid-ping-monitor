@@ -34,8 +34,16 @@ PlasmoidItem {
 
     // Everything a host name, IPv4 or IPv6 literal may contain, and nothing the
     // shell would treat as syntax. The command below single quotes the host, so
-    // rejecting quotes here is what keeps the interpolation safe.
-    readonly property bool hostValid: host.length > 0 && /^[A-Za-z0-9._:%\[\]-]+$/.test(host)
+    // rejecting quotes here is what keeps the interpolation safe. A leading
+    // dash is excluded as well, so a host can never be read as an option.
+    readonly property bool hostValid: /^[A-Za-z0-9\[][A-Za-z0-9._:%\[\]-]*$/.test(host)
+
+    // plasma-ping-helper speaks ICMP directly and answers in JSON. It is only
+    // there once the user has built it, so /usr/bin/ping stays as a fallback
+    // and the widget works either way.
+    readonly property string helperPath: "$HOME/.local/bin/plasma-ping-helper"
+    property bool useHelper: true
+    readonly property string backendName: useHelper ? i18n("ICMP helper") : i18n("ping command")
 
     readonly property color statusColor: {
         switch (pingStatus) {
@@ -117,16 +125,20 @@ PlasmoidItem {
         onTriggered: root.checkNow()
     }
 
-    // ping is given a hard deadline, but a wedged process would still leave the
-    // widget stuck on "checking" forever, so cut it loose after a grace period.
+    // Both backends bound their own runtime, but a wedged process would still
+    // leave the widget stuck on "checking" forever, so cut it loose after a
+    // grace period. The helper waits per packet, ping bounds the whole run.
     Timer {
         id: watchdog
-        interval: (Math.max(1, Plasmoid.configuration.timeout)
-                   + Math.max(1, Plasmoid.configuration.count) + 5) * 1000
+        interval: {
+            const timeout = Math.max(1, Plasmoid.configuration.timeout)
+            const count = Math.max(1, Plasmoid.configuration.count)
+            return (Math.max(timeout * count, timeout + count) + 5) * 1000
+        }
         onTriggered: {
             executable.connectedSources = []
             root.busy = false
-            root.applyResult(root.statusError, -1, -1, i18n("Timed out waiting for ping"))
+            root.applyResult(root.statusError, -1, -1, i18n("Timed out waiting for the check"))
         }
     }
 
@@ -147,6 +159,15 @@ PlasmoidItem {
         const count = Math.max(1, cfg.count)
         const timeout = Math.max(1, cfg.timeout)
         const family = cfg.addressFamily === 1 ? " -4" : (cfg.addressFamily === 2 ? " -6" : "")
+
+        if (useHelper) {
+            // The helper waits for each reply in turn, so it needs no deadline.
+            return "\"" + helperPath + "\"" + family
+                 + " -c " + count
+                 + " -w " + (timeout * 1000)
+                 + " '" + host + "'"
+        }
+
         // -w bounds the whole run; ping paces packets one second apart.
         const deadline = timeout + count
         return "LC_ALL=C ping -n" + family
@@ -176,6 +197,19 @@ PlasmoidItem {
         watchdog.stop()
         busy = false
 
+        if (useHelper) {
+            const report = parseHelperOutput(stdout)
+            if (report) {
+                applyHelperResult(report)
+                return
+            }
+            // No usable JSON means the helper is not installed or not runnable.
+            // Drop to ping for good and redo this check right away.
+            useHelper = false
+            checkNow()
+            return
+        }
+
         const out = stdout + "\n" + stderr
         const summary = out.match(/=\s*([0-9.]+)\/([0-9.]+)\/([0-9.]+)\/([0-9.]+)\s*ms/)
         const single = out.match(/time[=<]\s*([0-9.]+)\s*ms/)
@@ -194,6 +228,58 @@ PlasmoidItem {
             applyResult(statusError, -1, -1,
                         firstLine(stderr) || firstLine(stdout)
                         || i18n("ping exited with code %1", exitCode))
+        }
+    }
+
+    function parseHelperOutput(stdout) {
+        const text = (stdout || "").trim()
+        if (text.length === 0 || text.charAt(0) !== "{") {
+            return null
+        }
+        try {
+            const report = JSON.parse(text)
+            return (report && typeof report.status === "string") ? report : null
+        } catch (e) {
+            return null
+        }
+    }
+
+    function applyHelperResult(report) {
+        const loss = typeof report.loss === "number" ? report.loss : -1
+        const rtt = typeof report.rtt === "number" ? report.rtt : -1
+        const from = typeof report.address === "string" ? report.address : ""
+
+        switch (report.status) {
+        case "success":
+            applyResult(statusUp, rtt, loss,
+                        loss > 0 ? i18n("%1% packet loss", Math.round(loss)) : "")
+            break
+        case "unsupported":
+            // A reply arrived but its checksum did not add up.
+            applyResult(statusUp, rtt, loss, i18n("Reply could not be verified"))
+            break
+        case "timeout":
+            applyResult(statusDown, -1, loss >= 0 ? loss : 100, i18n("No reply from host"))
+            break
+        case "unreachable":
+            applyResult(statusDown, -1, loss >= 0 ? loss : 100,
+                        from.length > 0 ? i18n("Unreachable, reported by %1", from)
+                                        : i18n("Host is unreachable"))
+            break
+        case "timeexceeded":
+            applyResult(statusDown, -1, loss >= 0 ? loss : 100,
+                        from.length > 0 ? i18n("TTL expired at %1", from)
+                                        : i18n("TTL expired in transit"))
+            break
+        case "error":
+            applyResult(statusError, -1, -1,
+                        (typeof report.message === "string" && report.message.length > 0)
+                            ? report.message : i18n("The ping helper reported an error"))
+            break
+        case "failure":
+        default:
+            applyResult(statusError, -1, -1, i18n("Could not send the request"))
+            break
         }
     }
 
@@ -216,13 +302,16 @@ PlasmoidItem {
         latency = newLatency
         packetLoss = newLoss
         detail = newDetail
-        lastCheck = now
 
         historyModel.append({ ok: newStatus === statusUp, latency: newLatency, time: now })
         const limit = Math.max(5, Plasmoid.configuration.historySize)
         while (historyModel.count > limit) {
             historyModel.remove(0)
         }
+
+        // Last, because the popup rescales its history strip when this changes
+        // and the new entry has to be in the model by then.
+        lastCheck = now
 
         maybeNotify(previous, newStatus)
     }
@@ -277,6 +366,7 @@ PlasmoidItem {
         detail: root.detail
         lastCheck: root.lastCheck
         busy: root.busy
+        backendName: root.backendName
         history: historyModel
         interval: Math.max(5, Plasmoid.configuration.interval)
         onRefreshRequested: root.checkNow()

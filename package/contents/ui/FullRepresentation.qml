@@ -24,6 +24,7 @@ PlasmaExtras.Representation {
     property string detail: ""
     property double lastCheck: 0
     property bool busy: false
+    property string backendName: ""
     property var history: null
     property int interval: 30
 
@@ -179,6 +180,20 @@ PlasmaExtras.Representation {
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
             }
+
+            PlasmaComponents.Label {
+                visible: full.backendName.length > 0
+                text: i18n("Measured by:")
+                opacity: 0.75
+                Layout.alignment: Qt.AlignRight
+            }
+            PlasmaComponents.Label {
+                visible: full.backendName.length > 0
+                text: full.backendName
+                opacity: 0.75
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
         }
 
         Item { Layout.fillHeight: true }
@@ -226,10 +241,12 @@ PlasmaExtras.Representation {
                     // Oldest on the left, newest on the right.
                     Rectangle {
                         width: bars.barWidth
+                        // Clamped on both ends: a failed check is a full bar, a
+                        // very fast one still has to be visible, and a stale
+                        // peak can never scale a bar past the top.
                         height: model.ok
-                            ? Math.max(bars.height * 0.12,
-                                       bars.height * (model.latency > 0
-                                                      ? model.latency / full.maxLatency : 0.12))
+                            ? bars.height * Math.max(0.12, Math.min(1.0,
+                                  model.latency > 0 ? model.latency / full.maxLatency : 0.12))
                             : bars.height
                         y: bars.height - height
                         radius: Math.min(width, height) / 4

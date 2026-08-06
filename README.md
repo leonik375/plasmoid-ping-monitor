@@ -15,20 +15,30 @@ The dot pulses while a check is in flight.
 ## Install
 
 ```bash
+git clone --recurse-submodules <this repo>
+cd plasma-ping
 ./install.sh
 systemctl --user restart plasma-plasmashell
 ```
 
 Then right click the panel or desktop → *Add Widgets* → **Ping Monitor**.
 
-`install.sh` installs into `~/.local/share/plasma/plasmoids/` for the current
-user only, and upgrades in place if the widget is already installed. Plasma
-caches QML, so restart plasmashell after every reinstall.
+`install.sh` puts the widget in `~/.local/share/plasma/plasmoids/` and the ICMP
+helper in `~/.local/bin/`, both for the current user, and upgrades in place if
+they are already installed. **No step needs root.** Plasma caches QML, so
+restart plasmashell after every reinstall.
+
+If you already cloned without `--recurse-submodules`:
+
+```bash
+git submodule update --init --recursive
+```
 
 To remove it:
 
 ```bash
 kpackagetool6 --type Plasma/Applet --remove io.github.leonik.pingmonitor
+make uninstall
 ```
 
 ## Usage
@@ -58,34 +68,102 @@ Right click the widget → *Configure Ping Monitor…*
 
 ## How it works
 
-The widget runs `ping` through the Plasma `executable` data engine and reads the
-exit code: 0 is up, 1 is down, anything else is an error. Round trip time is
-taken from the `rtt min/avg/max/mdev` summary line, falling back to `time=`;
-`LC_ALL=C` keeps that output parseable regardless of your locale.
+The widget is plain QML and cannot speak ICMP itself, so each check runs a short
+lived process through the Plasma `executable` data engine. There are two
+backends, and the popup shows which one is live under **Measured by**.
 
-No root privileges are needed — `/usr/bin/ping` carries `cap_net_raw`, so it
-runs fine as your user.
+**`plasma-ping-helper`** (preferred) is a small C++ program built from
+[cpp-icmplib](https://github.com/markondej/cpp-icmplib). It sends the echo
+requests itself and prints one JSON object:
 
-The host is validated against `^[A-Za-z0-9._:%\[\]-]+$` before being
-single quoted into the command, which is what keeps the shell interpolation
-safe. Anything containing shell syntax is rejected as an invalid host.
+```json
+{"status":"success","host":"1.1.1.1","sent":1,"received":1,"loss":0,
+ "rtt":24.4,"rtt_min":24.4,"rtt_max":24.4,"address":"1.1.1.1","code":0,"ttl":0}
+```
 
-Every check spawns a short lived `ping` process; the poll interval is the
-practical floor on how often that happens.
+`status` is one of `success`, `timeout`, `unreachable`, `timeexceeded`,
+`unsupported`, `failure` or `error`, which is more than `ping`'s exit code can
+express — an unroutable host and an expired TTL become distinguishable.
+
+**`/usr/bin/ping`** is the fallback, used automatically whenever the helper is
+missing or unrunnable, so the widget works before you have built anything. It
+parses the `rtt min/avg/max/mdev` line, falling back to `time=`, with `LC_ALL=C`
+to keep the output stable regardless of your locale.
+
+### No root, either way
+
+`/usr/bin/ping` already carries `cap_net_raw`. The helper needs no privileges at
+all: it uses Linux **ping sockets** (`SOCK_DGRAM`/`IPPROTO_ICMP`), which any user
+in `net.ipv4.ping_group_range` may open.
+
+```bash
+$ cat /proc/sys/net/ipv4/ping_group_range
+0	2147483647          # the default on most distributions: everyone
+```
+
+cpp-icmplib opens a raw socket upstream, so
+`patches/0001-unprivileged-ping-sockets.patch` moves it onto ping sockets. The
+submodule itself is never modified — `make` copies the header into `build/` and
+patches the copy. Three things follow from the kernel's ping socket semantics,
+all handled by the patch:
+
+- no IP header is delivered, so the IPv4 read offsets drop to zero
+- the kernel owns the echo identifier and rewrites it, so replies are correlated
+  on sequence number instead
+- TTL lives in the IP header we no longer get, so it is reported as `0`
+
+Build `make RAW=1` instead to keep upstream's raw sockets verbatim; that binary
+needs `sudo setcap cap_net_raw+ep build/plasma-ping-helper` and in exchange
+reports a real TTL.
+
+### Host validation
+
+The host is checked against `^[A-Za-z0-9\[][A-Za-z0-9._:%\[\]-]*$` before being
+single quoted into the command. That excludes every shell metacharacter, and the
+leading character rule stops a host from being read as a command line option.
+
+Every check spawns a process; the poll interval is the practical floor on how
+often that happens.
 
 ## Layout
 
 ```
-package/
-├── metadata.json                     plugin id, name, icon
-└── contents/
-    ├── config/
-    │   ├── main.xml                  config keys and defaults
-    │   └── config.qml                config page list
-    └── ui/
-        ├── main.qml                  ping logic, state, notifications
-        ├── CompactRepresentation.qml the panel dot
-        ├── FullRepresentation.qml    the popup
-        ├── StatusDot.qml             the dot itself, reused in both
-        └── configGeneral.qml         settings page
+├── Makefile                          builds and installs the helper
+├── install.sh                        widget + helper, no root
+├── patches/
+│   └── 0001-unprivileged-ping-sockets.patch
+├── src/
+│   └── plasma-ping-helper.cpp        ICMP helper, prints JSON
+├── third_party/
+│   └── cpp-icmplib/                  submodule, never modified
+└── package/
+    ├── metadata.json                 plugin id, name, icon
+    └── contents/
+        ├── config/
+        │   ├── main.xml              config keys and defaults
+        │   └── config.qml            config page list
+        └── ui/
+            ├── main.qml              check logic, state, notifications
+            ├── CompactRepresentation.qml the panel dot
+            ├── FullRepresentation.qml    the popup
+            ├── StatusDot.qml             the dot itself, reused in both
+            └── configGeneral.qml         settings page
 ```
+
+## Helper on its own
+
+It is a normal command line tool, useful for checking the install:
+
+```console
+$ plasma-ping-helper 1.1.1.1 -c 3 -w 2000
+{"status":"success","host":"1.1.1.1","sent":3,"received":3,"loss":0, ...}
+$ echo $?     # 0 replied, 1 no reply, 2 usage or system error
+0
+```
+
+`make check` runs it against a reachable host, an unroutable one and a bad name.
+
+## Licensing
+
+The widget and the helper are GPL-3.0-or-later. cpp-icmplib is BSD 3-Clause,
+Copyright (c) 2021 Marcin Kondej, and is included as an unmodified submodule.

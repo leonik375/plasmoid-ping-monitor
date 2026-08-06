@@ -5,6 +5,7 @@
 #   make install    install the helper into $(PREFIX)/bin
 #   make check      build and run against a known good host
 #   make dist       release tarball, complete unlike a GitHub source archive
+#   make plasmoid   .plasmoid file to upload to store.kde.org
 
 PREFIX  ?= $(HOME)/.local
 CXX     ?= g++
@@ -17,7 +18,7 @@ BIN     := $(BUILD)/plasma-ping-helper
 VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo unknown)
 DIST    := plasmoid-ping-monitor-$(VERSION)
 
-.PHONY: all install uninstall check dist clean
+.PHONY: all install uninstall check dist plasmoid clean
 
 all: $(BIN)
 
@@ -59,6 +60,14 @@ dist: $(LIB)/icmplib.h
 	    || { echo "submodule contents are missing, run git submodule update --init"; false; }
 	@tar czf $(DIST).tar.gz --transform 's,^,$(DIST)/,' -T $(BUILD)/dist-files
 	@echo "created $(DIST).tar.gz  ($$(du -h $(DIST).tar.gz | cut -f1), $$(wc -l < $(BUILD)/dist-files) files)"
+
+# The file store.kde.org distributes and Get New Widgets installs. It is the QML
+# package alone: the helper cannot be delivered this way, so a widget installed
+# from the store runs on /usr/bin/ping until the helper is built separately.
+plasmoid:
+	@rm -f $(DIST).plasmoid
+	@cd package && zip -qr $(CURDIR)/$(DIST).plasmoid . -x '.*' '*/.*'
+	@echo "created $(DIST).plasmoid  ($$(du -h $(DIST).plasmoid | cut -f1))"
 
 clean:
 	rm -rf $(BUILD)

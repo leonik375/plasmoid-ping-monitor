@@ -158,6 +158,23 @@ $ echo $?     # 0 replied, 1 no reply, 2 usage or system error
 
 ## Releasing
 
+Two independent artifacts, neither derived from the other.
+
+**store.kde.org** takes a `.plasmoid`, which is the QML package alone. The
+submodule and the helper play no part in it, so none of the archive problem
+below applies. Uploading is manual, through the web interface, once per release:
+
+```bash
+make plasmoid                   # -> plasmoid-ping-monitor-<version>.plasmoid
+```
+
+A widget installed this way runs on `/usr/bin/ping`, since a store install
+cannot deliver a compiled helper. That is the designed fallback, not a
+degradation to work around: the widget is fully functional without the helper.
+
+**Source releases** are for people who want the helper as well.
+
+
 GitHub builds its source archives with `git archive`, which leaves submodule
 directories empty, so neither the download button nor the files it generates for
 a release can be built from. Attach a complete tarball instead:

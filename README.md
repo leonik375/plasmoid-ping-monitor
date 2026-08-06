@@ -101,20 +101,15 @@ $ cat /proc/sys/net/ipv4/ping_group_range
 0	2147483647          # the default on most distributions: everyone
 ```
 
-cpp-icmplib opens a raw socket upstream, so
-`patches/0001-unprivileged-ping-sockets.patch` moves it onto ping sockets. The
-submodule itself is never modified — `make` copies the header into `build/` and
-patches the copy. Three things follow from the kernel's ping socket semantics,
-all handled by the patch:
+cpp-icmplib opens a raw socket, which needs `CAP_NET_RAW`, and falls back to a
+ping socket when that is refused. That fallback is not upstream yet — it is
+[markondej/cpp-icmplib#8](https://github.com/markondej/cpp-icmplib/pull/8) — so
+the submodule tracks the fork carrying it and moves back to upstream once it
+lands. Nothing is patched at build time.
 
-- no IP header is delivered, so the IPv4 read offsets drop to zero
-- the kernel owns the echo identifier and rewrites it, so replies are correlated
-  on sequence number instead
-- TTL lives in the IP header we no longer get, so it is reported as `0`
-
-Build `make RAW=1` instead to keep upstream's raw sockets verbatim; that binary
-needs `sudo setcap cap_net_raw+ep build/plasma-ping-helper` and in exchange
-reports a real TTL.
+One consequence of ping socket semantics: TTL lives in the IP header the kernel
+does not pass on, so it is reported as `0`. Everything else, including
+`unreachable` and `timeexceeded`, is reported normally.
 
 ### Host validation
 
@@ -130,8 +125,6 @@ often that happens.
 ```
 ├── Makefile                          builds and installs the helper
 ├── install.sh                        widget + helper, no root
-├── patches/
-│   └── 0001-unprivileged-ping-sockets.patch
 ├── src/
 │   └── plasma-ping-helper.cpp        ICMP helper, prints JSON
 ├── third_party/
@@ -166,4 +159,4 @@ $ echo $?     # 0 replied, 1 no reply, 2 usage or system error
 ## Licensing
 
 The widget and the helper are GPL-2.0-or-later. cpp-icmplib is BSD 3-Clause,
-Copyright (c) 2021 Marcin Kondej, and is included as an unmodified submodule.
+Copyright (c) 2021 Marcin Kondej, and is included as a submodule.

@@ -4,6 +4,7 @@
 #   make            build the helper
 #   make install    install the helper into $(PREFIX)/bin
 #   make check      build and run against a known good host
+#   make dist       release tarball, complete unlike a GitHub source archive
 
 PREFIX  ?= $(HOME)/.local
 CXX     ?= g++
@@ -13,7 +14,10 @@ BUILD   := build
 LIB     := third_party/cpp-icmplib
 BIN     := $(BUILD)/plasma-ping-helper
 
-.PHONY: all install uninstall check clean
+VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo unknown)
+DIST    := plasmoid-ping-monitor-$(VERSION)
+
+.PHONY: all install uninstall check dist clean
 
 all: $(BIN)
 
@@ -42,6 +46,19 @@ check: all
 	 echo "--- unroutable host ---"; $(BIN) 192.0.2.1 -w 1000; \
 	 echo "--- bad name ---"; $(BIN) nonexistent.invalid; \
 	 echo "(exit statuses above: 0 reply, 1 no reply, 2 error)"
+
+# GitHub builds its source archives with git archive, which leaves submodule
+# directories empty, so neither the download button nor the files generated for
+# a release can be built from. This produces a complete tarball to attach to the
+# release instead, and refuses rather than shipping one with the library missing.
+dist: $(LIB)/icmplib.h
+	@git diff --quiet HEAD || echo "warning: uncommitted changes will be included"
+	@mkdir -p $(BUILD)
+	@git ls-files --recurse-submodules > $(BUILD)/dist-files
+	@grep -qx '$(LIB)/icmplib.h' $(BUILD)/dist-files \
+	    || { echo "submodule contents are missing, run git submodule update --init"; false; }
+	@tar czf $(DIST).tar.gz --transform 's,^,$(DIST)/,' -T $(BUILD)/dist-files
+	@echo "created $(DIST).tar.gz  ($$(du -h $(DIST).tar.gz | cut -f1), $$(wc -l < $(BUILD)/dist-files) files)"
 
 clean:
 	rm -rf $(BUILD)

@@ -156,6 +156,25 @@ $ echo $?     # 0 replied, 1 no reply, 2 usage or system error
 
 `make check` runs it against a reachable host, an unroutable one and a bad name.
 
+## Releasing
+
+GitHub builds its source archives with `git archive`, which leaves submodule
+directories empty, so neither the download button nor the files it generates for
+a release can be built from. Attach a complete tarball instead:
+
+```bash
+git submodule update --init --recursive
+make dist                       # refuses if the submodule is missing
+gh release create v1.0 plasmoid-ping-monitor-v1.0.tar.gz \
+    --notes "Build from the attached tarball. The source archives GitHub
+             generates are incomplete, as they omit the cpp-icmplib submodule."
+```
+
+The auto-generated archives still appear on the release page and cannot be
+removed, so name the asset distinctly and say which one to use. Anyone cloning
+with `--recurse-submodules` is unaffected, and a build from an incomplete
+archive fails with instructions rather than silently.
+
 ## Licensing
 
 The widget and the helper are GPL-2.0-or-later. cpp-icmplib is BSD 3-Clause,

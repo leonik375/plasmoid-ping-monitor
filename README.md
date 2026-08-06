@@ -168,9 +168,19 @@ below applies. Uploading is manual, through the web interface, once per release:
 make plasmoid                   # -> plasmoid-ping-monitor-<version>.plasmoid
 ```
 
-A widget installed this way runs on `/usr/bin/ping`, since a store install
-cannot deliver a compiled helper. That is the designed fallback, not a
-degradation to work around: the widget is fully functional without the helper.
+The package carries a helper built for the architecture it was made on, named
+after it, so the widget picks the right file or none at all. Anyone on another
+architecture, or with a C library too old to load it, falls back to
+`/usr/bin/ping` and still gets a fully working widget.
+
+The widget tries three things in order, each falling through when it returns
+nothing usable: a helper in `~/.local/bin`, which matches the system it was
+built on exactly; the copy inside the package; then `/usr/bin/ping`. The popup
+names whichever answered.
+
+Deliberately linked dynamically. A static build would resolve IP addresses but
+fail on host names wherever the glibc differs, and that failure reports a
+plausible looking error instead of falling through to `ping`.
 
 **Source releases** are for people who want the helper as well.
 

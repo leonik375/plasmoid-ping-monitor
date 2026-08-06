@@ -38,12 +38,31 @@ PlasmoidItem {
     // dash is excluded as well, so a host can never be read as an option.
     readonly property bool hostValid: /^[A-Za-z0-9\[][A-Za-z0-9._:%\[\]-]*$/.test(host)
 
-    // plasma-ping-helper speaks ICMP directly and answers in JSON. It is only
-    // there once the user has built it, so /usr/bin/ping stays as a fallback
-    // and the widget works either way.
-    readonly property string helperPath: "$HOME/.local/bin/plasma-ping-helper"
-    property bool useHelper: true
-    readonly property string backendName: useHelper ? i18n("ICMP helper") : i18n("ping command")
+    // plasma-ping-helper speaks ICMP directly and answers in JSON. Three
+    // candidates are tried in order, each falling through to the next when it
+    // produces nothing usable: one the user built, which matches their system
+    // exactly, then the copy shipped inside this package, which may be for
+    // another architecture or need a newer C library, then /usr/bin/ping, which
+    // is always there. The widget works whichever one answers.
+    readonly property int backendUserHelper: 0
+    readonly property int backendBundledHelper: 1
+    readonly property int backendPing: 2
+    property int backend: backendUserHelper
+
+    readonly property string userHelperPath: "$HOME/.local/bin/plasma-ping-helper"
+    // Resolved from this file's own location, so it follows the package
+    // wherever it is installed. The architecture is left for the shell to fill
+    // in, which picks the right file or none at all.
+    readonly property string bundledHelperDir:
+        Qt.resolvedUrl("../bin/").toString().replace(/^file:\/\//, "")
+
+    readonly property string backendName: {
+        switch (backend) {
+        case backendUserHelper: return i18n("ICMP helper")
+        case backendBundledHelper: return i18n("ICMP helper, bundled")
+        default: return i18n("ping command")
+        }
+    }
 
     readonly property color statusColor: {
         switch (pingStatus) {
@@ -160,9 +179,14 @@ PlasmoidItem {
         const timeout = Math.max(1, cfg.timeout)
         const family = cfg.addressFamily === 1 ? " -4" : (cfg.addressFamily === 2 ? " -6" : "")
 
-        if (useHelper) {
-            // The helper waits for each reply in turn, so it needs no deadline.
-            return "\"" + helperPath + "\"" + family
+        if (backend !== backendPing) {
+            // $(uname -m) is left for the shell so one package serves any
+            // architecture it was built for. The helper waits for each reply in
+            // turn, so it needs no overall deadline.
+            const helper = (backend === backendUserHelper)
+                ? "\"" + userHelperPath + "\""
+                : "\"" + bundledHelperDir + "plasma-ping-helper-$(uname -m)\""
+            return helper + family
                  + " -c " + count
                  + " -w " + (timeout * 1000)
                  + " '" + host + "'"
@@ -197,15 +221,16 @@ PlasmoidItem {
         watchdog.stop()
         busy = false
 
-        if (useHelper) {
+        if (backend !== backendPing) {
             const report = parseHelperOutput(stdout)
             if (report) {
                 applyHelperResult(report)
                 return
             }
-            // No usable JSON means the helper is not installed or not runnable.
-            // Drop to ping for good and redo this check right away.
-            useHelper = false
+            // Nothing usable came back, so this candidate is missing, built for
+            // another architecture, or otherwise unrunnable. Move to the next
+            // one for good and repeat the check straight away.
+            backend = backend + 1
             checkNow()
             return
         }

@@ -2,3 +2,4 @@ build/
 *.o
 *.tar.gz
 *.plasmoid
+package/contents/bin/

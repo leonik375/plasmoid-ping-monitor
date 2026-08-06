@@ -1,0 +1,38 @@
+Shows whether a host is reachable as a coloured dot in your panel.
+
+Green means it replied, red means it did not, orange means the check could not
+run at all — a name that will not resolve, for instance. The dot pulses while a
+check is in flight, and hovering it gives you the same information as a tooltip.
+
+Click the dot for details: round trip time, packet loss, the time of the last
+check, and a history strip with one bar per check, where the height of each bar
+is the round trip time and red marks a failure.
+
+FEATURES
+
+- Any host name, IPv4 address or IPv6 address
+- Configurable check interval, reply timeout and packets per check
+- Optionally show the round trip time or the host name beside the dot
+- Optionally notify when availability changes, on the transition only
+- Optionally keep the widget prominent while the host is unreachable
+- Middle click to check immediately without opening anything
+
+No root access and no setcap are required.
+
+HOW IT MEASURES
+
+Out of the box the widget uses /usr/bin/ping, which every Linux system already
+has, so it works the moment you install it.
+
+An optional helper, built from the source repository, speaks ICMP directly
+instead. It tells an unreachable host apart from an expired TTL rather than
+reporting both as a timeout, names the router that rejected the packet, and does
+not depend on reading command output that changes with your language. The popup
+shows which of the two is in use; the screenshot shows the helper.
+
+REQUIREMENTS
+
+Plasma 6.
+
+Source, issue tracker and the optional helper:
+https://github.com/leonik375/plasmoid-ping-monitor

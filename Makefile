@@ -5,7 +5,7 @@
 #   make install    install the helper into $(PREFIX)/bin
 #   make check      build and run against a known good host
 #   make dist       release tarball, complete unlike a GitHub source archive
-#   make plasmoid   .plasmoid file to upload to store.kde.org
+#   make plasmoid   .plasmoid file to upload to store.kde.org, helper included
 
 PREFIX  ?= $(HOME)/.local
 CXX     ?= g++
@@ -14,11 +14,16 @@ CXXFLAGS ?= -O2 -std=c++11 -Wall -Wextra
 BUILD   := build
 LIB     := third_party/cpp-icmplib
 BIN     := $(BUILD)/plasma-ping-helper
+ARCH    := $(shell uname -m)
+BUNDLED := package/contents/bin/plasma-ping-helper-$(ARCH)
 
-VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo unknown)
+# A release is built from a commit that is exactly a tag. Anything else is a
+# development build, named after the commit and only warned about.
+VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null \
+                   || git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DIST    := plasmoid-ping-monitor-$(VERSION)
 
-.PHONY: all install uninstall check check-version dist plasmoid clean
+.PHONY: all install uninstall check check-version dist bundle plasmoid clean
 
 all: $(BIN)
 
@@ -79,10 +84,24 @@ dist: check-version $(LIB)/icmplib.h
 # The file store.kde.org distributes and Get New Widgets installs. It is the QML
 # package alone: the helper cannot be delivered this way, so a widget installed
 # from the store runs on /usr/bin/ping until the helper is built separately.
-plasmoid: check-version
+# The store has no other way to deliver a compiled helper, so the package carries
+# one built for this architecture, named after it so the widget can pick the
+# right file. Anyone on another architecture, or with a C library too old to
+# load it, gets nothing usable from it and the widget falls back to
+# /usr/bin/ping. Linked dynamically on purpose: a static build would resolve IP
+# addresses but fail on host names wherever the glibc differs, and that failure
+# looks like a working helper reporting an error rather than one to fall back on.
+$(BUNDLED): src/plasma-ping-helper.cpp $(LIB)/icmplib.h
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -I$(LIB) -o $@ $<
+	@echo "bundled helper for $(ARCH)"
+
+bundle: $(BUNDLED)
+
+plasmoid: check-version $(BUNDLED)
 	@rm -f $(DIST).plasmoid
 	@cd package && zip -qr $(CURDIR)/$(DIST).plasmoid . -x '.*' '*/.*'
 	@echo "created $(DIST).plasmoid  ($$(du -h $(DIST).plasmoid | cut -f1))"
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD) package/contents/bin

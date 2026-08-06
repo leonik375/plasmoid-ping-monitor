@@ -18,7 +18,7 @@ BIN     := $(BUILD)/plasma-ping-helper
 VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo unknown)
 DIST    := plasmoid-ping-monitor-$(VERSION)
 
-.PHONY: all install uninstall check dist plasmoid clean
+.PHONY: all install uninstall check check-version dist plasmoid clean
 
 all: $(BIN)
 
@@ -52,7 +52,22 @@ check: all
 # directories empty, so neither the download button nor the files generated for
 # a release can be built from. This produces a complete tarball to attach to the
 # release instead, and refuses rather than shipping one with the library missing.
-dist: $(LIB)/icmplib.h
+# Plasma and store.kde.org decide whether an update exists from the version in
+# metadata.json, so a release whose name disagrees with it would never reach
+# anyone already running the widget. Keep the two from drifting.
+check-version:
+	@meta=$$(sed -n 's/.*"Version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' package/metadata.json); \
+	 name=$$(echo "$(VERSION)" | sed 's/^v//'); \
+	 case "$(VERSION)" in \
+	   v[0-9]*) if [ "$$meta" != "$$name" ]; then \
+	                echo "version mismatch: metadata.json says $$meta, tag says $$name"; \
+	                echo "update package/metadata.json or move the tag"; exit 1; \
+	            fi; \
+	            echo "version $$meta" ;; \
+	   *) echo "warning: $(VERSION) is not a release tag, metadata.json says $$meta" ;; \
+	 esac
+
+dist: check-version $(LIB)/icmplib.h
 	@git diff --quiet HEAD || echo "warning: uncommitted changes will be included"
 	@mkdir -p $(BUILD)
 	@git ls-files --recurse-submodules > $(BUILD)/dist-files
@@ -64,7 +79,7 @@ dist: $(LIB)/icmplib.h
 # The file store.kde.org distributes and Get New Widgets installs. It is the QML
 # package alone: the helper cannot be delivered this way, so a widget installed
 # from the store runs on /usr/bin/ping until the helper is built separately.
-plasmoid:
+plasmoid: check-version
 	@rm -f $(DIST).plasmoid
 	@cd package && zip -qr $(CURDIR)/$(DIST).plasmoid . -x '.*' '*/.*'
 	@echo "created $(DIST).plasmoid  ($$(du -h $(DIST).plasmoid | cut -f1))"

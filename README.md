@@ -174,6 +174,12 @@ degradation to work around: the widget is fully functional without the helper.
 
 **Source releases** are for people who want the helper as well.
 
+Both artifacts take their version from the git tag, and both refuse to build if
+it disagrees with `package/metadata.json`. That version is what Plasma compares
+to decide an update exists, so a release that got it wrong would never reach
+anyone already running the widget. To cut one, bump `metadata.json`, commit, then
+tag `v<version>` to match.
+
 
 GitHub builds its source archives with `git archive`, which leaves submodule
 directories empty, so neither the download button nor the files it generates for

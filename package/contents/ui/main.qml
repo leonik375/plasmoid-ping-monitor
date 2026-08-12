@@ -394,6 +394,7 @@ PlasmoidItem {
         backendName: root.backendName
         history: historyModel
         interval: Math.max(5, Plasmoid.configuration.interval)
+        historySize: Math.max(5, Plasmoid.configuration.historySize)
         onRefreshRequested: root.checkNow()
         onConfigureRequested: Plasmoid.internalAction("configure").trigger()
     }

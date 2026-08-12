@@ -27,6 +27,7 @@ PlasmaExtras.Representation {
     property string backendName: ""
     property var history: null
     property int interval: 30
+    property int historySize: 30
 
     signal refreshRequested()
     signal configureRequested()
@@ -217,6 +218,22 @@ PlasmaExtras.Representation {
             Layout.rightMargin: Kirigami.Units.smallSpacing
             Layout.bottomMargin: Kirigami.Units.smallSpacing
 
+            // A bar is sized for a full history rather than for what has been
+            // collected so far, so it keeps its width from the very first check
+            // instead of the strip being redrawn wider each time.
+            readonly property int capacity: Math.max(1, full.historySize)
+            readonly property real gap: (width / capacity) > 3 ? 1 : 0
+            readonly property real barWidth: Math.max(1, width / capacity - gap)
+
+            // The strip a full history would occupy, so a partly filled one
+            // reads as room left to fill rather than as a gap.
+            Rectangle {
+                anchors.fill: parent
+                radius: Kirigami.Units.cornerRadius
+                color: Kirigami.Theme.textColor
+                opacity: 0.07
+            }
+
             PlasmaComponents.Label {
                 anchors.centerIn: parent
                 visible: !full.history || full.history.count === 0
@@ -225,29 +242,28 @@ PlasmaExtras.Representation {
                 opacity: 0.6
             }
 
+            // Anchored right, so the newest check keeps the right hand edge and
+            // history grows away to the left as it accumulates.
             Row {
                 id: bars
-                anchors.fill: parent
-                spacing: 1
-                layoutDirection: Qt.LeftToRight
-
-                readonly property real barWidth: full.history && full.history.count > 0
-                    ? Math.max(2, (width - spacing * (full.history.count - 1)) / full.history.count)
-                    : 2
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                spacing: sparkline.gap
 
                 Repeater {
                     model: full.history
 
                     // Oldest on the left, newest on the right.
                     Rectangle {
-                        width: bars.barWidth
+                        width: sparkline.barWidth
                         // Clamped on both ends: a failed check is a full bar, a
                         // very fast one still has to be visible, and a stale
                         // peak can never scale a bar past the top.
-                        height: model.ok
-                            ? bars.height * Math.max(0.12, Math.min(1.0,
+                        height: bars.height * (model.ok
+                            ? Math.max(0.12, Math.min(1.0,
                                   model.latency > 0 ? model.latency / full.maxLatency : 0.12))
-                            : bars.height
+                            : 1.0)
                         y: bars.height - height
                         radius: Math.min(width, height) / 4
                         color: model.ok ? Kirigami.Theme.positiveTextColor

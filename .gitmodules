@@ -1,4 +1,3 @@
 [submodule "third_party/cpp-icmplib"]
 	path = third_party/cpp-icmplib
-	url = https://github.com/leonik375/cpp-icmplib.git
-	branch = unprivileged-ping-sockets
+	url = https://github.com/markondej/cpp-icmplib.git

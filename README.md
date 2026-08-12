@@ -102,10 +102,9 @@ $ cat /proc/sys/net/ipv4/ping_group_range
 ```
 
 cpp-icmplib opens a raw socket, which needs `CAP_NET_RAW`, and falls back to a
-ping socket when that is refused. That fallback is not upstream yet — it is
-[markondej/cpp-icmplib#8](https://github.com/markondej/cpp-icmplib/pull/8) — so
-the submodule tracks the fork carrying it and moves back to upstream once it
-lands. Nothing is patched at build time.
+ping socket when that is refused. That fallback is upstream as of
+[markondej/cpp-icmplib#8](https://github.com/markondej/cpp-icmplib/pull/8), so
+the submodule tracks upstream directly and nothing is patched at build time.
 
 One consequence of ping socket semantics: TTL lives in the IP header the kernel
 does not pass on, so it is reported as `0`. Everything else, including

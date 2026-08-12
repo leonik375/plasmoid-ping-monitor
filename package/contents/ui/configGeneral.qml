@@ -25,6 +25,21 @@ KCM.SimpleKCM {
     property alias cfg_attentionWhenDown: attentionBox.checked
     property alias cfg_historySize: historyBox.value
 
+    // Plasma hands every configuration key to this page, and the property map
+    // carries a Default entry alongside each one. Declaring them keeps the
+    // dialog from complaining about a page that cannot accept what it is given.
+    property string cfg_hostDefault
+    property string cfg_labelDefault
+    property int cfg_intervalDefault
+    property int cfg_timeoutDefault
+    property int cfg_countDefault
+    property int cfg_addressFamilyDefault
+    property bool cfg_showLatencyDefault
+    property bool cfg_showLabelDefault
+    property bool cfg_notifyOnChangeDefault
+    property bool cfg_attentionWhenDownDefault
+    property int cfg_historySizeDefault
+
     Kirigami.FormLayout {
         anchors.left: parent.left
         anchors.right: parent.right

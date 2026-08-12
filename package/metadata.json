@@ -13,7 +13,7 @@
         "Id": "io.github.leonik.pingmonitor",
         "License": "GPL-2.0-or-later",
         "Name": "Ping Monitor",
-        "Version": "1.0.2"
+        "Version": "1.0.3"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }
